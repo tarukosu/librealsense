@@ -51,8 +51,8 @@ pcl_rgb_ptr points_to_pcl(const rs2::points& points, rs2::video_frame frame)
 
 	auto width = frame.get_width();
 	auto height = frame.get_height();
-	std::cout << "width:" << width << std::endl;
-	std::cout << "height:" << height << std::endl;
+	//std::cout << "width:" << width << std::endl;
+	//std::cout << "height:" << height << std::endl;
 
 	for (int i = 0; i < points.size(); i++)
 	{
@@ -152,41 +152,52 @@ float3 colors[] { { 0.8f, 0.1f, 0.3f },
 
 int main(int argc, char * argv[]) try
 {
-    // Create a simple OpenGL window for rendering:
-    window app(1280, 720, "RealSense PCL Pointcloud Example");
-    // Construct an object to manage view state
-    state app_state;
-    // register callbacks to allow manipulation of the pointcloud
-    register_glfw_callbacks(app, app_state);
+	// Create a simple OpenGL window for rendering:
+	window app(1280, 720, "RealSense PCL Pointcloud Example");
+	// Construct an object to manage view state
+	state app_state;
+	// register callbacks to allow manipulation of the pointcloud
+	register_glfw_callbacks(app, app_state);
 
-    // Declare pointcloud object, for calculating pointclouds and texture mappings
-    rs2::pointcloud pc;
-    // We want the points object to be persistent so we can display the last cloud when a frame drops
-    rs2::points points;
+	// Declare pointcloud object, for calculating pointclouds and texture mappings
+	rs2::pointcloud pc;
+	// We want the points object to be persistent so we can display the last cloud when a frame drops
+	rs2::points points;
 
-    // Declare RealSense pipeline, encapsulating the actual device and sensors
-    rs2::pipeline pipe;
-    // Start streaming with default recommended configuration
-    pipe.start();
+	// Declare RealSense pipeline, encapsulating the actual device and sensors
+	rs2::pipeline pipe;
+	// Start streaming with default recommended configuration
+	pipe.start();
 
-    
+
 	rs2::frameset frames;
 	rs2::video_frame color = nullptr;
 	rs2::depth_frame depth = nullptr;
 	pcl_ptr pcl_points;
 
 	//compression
-	bool showStatistics = true;
+bool showStatistics = true;
+//	bool showStatistics = false;
 
 	// for a full list of profiles see: /io/include/pcl/compression/compression_profiles.h
 	pcl::io::compression_Profiles_e compressionProfileRGB = pcl::io::MED_RES_ONLINE_COMPRESSION_WITH_COLOR;
 	pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITHOUT_COLOR;
 
 	// instantiate point cloud compression for encoding and decoding
-	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
-//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl_rgb_ptr>(compressionProfileRGB, showStatistics);
-	auto 	PointCloudEncoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZ>(compressionProfile, showStatistics);
-	auto PointCloudDecoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>();
+	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
+	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics, 0.001, 0.01, false, 30U);
+
+	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl_rgb_ptr>(compressionProfileRGB, showStatistics);
+//	auto 	PointCloudEncoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZ>(compressionProfile, showStatistics);
+	//	auto PointCloudDecoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>();
+
+
+	int filtered_size = 0;
+	
+	int calc_compression_index = 0;
+	int calc_compression_rate = 30;
+	int compression_data_size = 0;
+
 
 
     while (app) // Application still alive?
@@ -230,6 +241,11 @@ int main(int argc, char * argv[]) try
 
 		//pcl_points = points_to_pcl(points);
 
+		/*
+		std::cout << "point size" << std::endl;
+		std::cout << pcl_rgb_points->points.size() << std::endl;
+		*/
+
 
 
 		//pcl_rgb_ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -238,9 +254,21 @@ int main(int argc, char * argv[]) try
 		pcl::PassThrough<pcl::PointXYZRGB> pass;
 		pass.setInputCloud(pcl_rgb_points);
 		pass.setFilterFieldName("z");
-		pass.setFilterLimits(0.0, 1.0);
+		pass.setFilterLimits(0.2, 1.0);
 
 		pass.filter(*cloud_filtered);
+
+		/*
+		std::cout << cloud_filtered->points.size() << std::endl;
+		std::cout << cloud_filtered->is_dense << std::endl;
+		std::cout << cloud_filtered->size() << std::endl;
+		*/
+		if (filtered_size == 0) {
+			filtered_size = cloud_filtered->size();
+		}
+
+		cloud_filtered->resize(filtered_size);
+
 
 		// compress 
 		std::stringstream compressedData;
@@ -251,7 +279,25 @@ int main(int argc, char * argv[]) try
 		//PointCloudEncoder->encodePointCloud(cloud_filteredp, compressedData);
 		//PointCloudEncoder->encodePointCloud(pcl_rgb_points, compressedData);
 		//PointCloudEncoderRGB->encodePointCloud(pcl_rgb_points, compressedData);
-		PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
+		 PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
+
+
+		 compressedData.seekp(0, ios::end);
+		 stringstream::pos_type offset = compressedData.tellp();
+		 std::cout << offset << std::endl;
+
+
+		 calc_compression_index++;
+		 if (calc_compression_index == calc_compression_rate) {
+			 compression_data_size += (int)offset;
+			 std::cout << compression_data_size / calc_compression_rate << "Bytes" << std::endl;
+			 compression_data_size = 0;
+			 calc_compression_index = 0;
+		 }
+
+
+
+
 		//try {
 
 			/*
