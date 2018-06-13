@@ -7,6 +7,14 @@
 #include <pcl/point_types.h>
 #include <pcl/filters/passthrough.h>
 
+
+#include <pcl/io/openni2_grabber.h>
+
+#include <pcl/visualization/cloud_viewer.h>
+
+#include <pcl/compression/octree_pointcloud_compression.h>
+
+
 // Struct for managing rotation of pointcloud view
 struct state {
     state() : yaw(0.0), pitch(0.0), last_x(0.0), last_y(0.0),
@@ -15,20 +23,64 @@ struct state {
 };
 
 using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
+using pcl_rgb_ptr = pcl::PointCloud<pcl::PointXYZRGB>::Ptr;
 
 // Helper functions
 void register_glfw_callbacks(window& app, state& app_state);
 void draw_pointcloud(window& app, state& app_state, const std::vector<pcl_ptr>& points);
 
-pcl_ptr points_to_pcl(const rs2::points& points)
+
+pcl_rgb_ptr points_to_pcl(const rs2::points& points, rs2::video_frame frame)
 {
-    pcl_ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl_rgb_ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     auto sp = points.get_profile().as<rs2::video_stream_profile>();
     cloud->width = sp.width();
     cloud->height = sp.height();
     cloud->is_dense = false;
     cloud->points.resize(points.size());
+
+
+	auto vertices = points.get_vertices();              // get vertices
+	auto tex_coords = points.get_texture_coordinates(); // and texture coordinates
+
+
+	//auto color = (unsigned char*)frame.get_data();
+	auto color = (uint8_t *)frame.get_data();
+
+	for (int i = 0; i < points.size(); i++)
+	{
+//		if (vertices[i].z)
+		{
+			// upload the point and texture coordinates only for points we have depth data for
+			cloud->points[i].x = vertices[i].x;
+			cloud->points[i].y = vertices[i].y;
+
+			cloud->points[i].z = vertices[i].z;
+
+			auto coords = tex_coords[i];
+			auto color_x = (int)(coords.u * frame.get_width());
+			auto color_y = (int)(coords.v * frame.get_height());
+
+			auto width = frame.get_width();
+
+
+			cloud->points[i].r = *(color + color_x * 3 + color_y * width * 3 + 0);
+			cloud->points[i].g = *(color + color_x * 3 + color_y * width * 3 + 1);
+			cloud->points[i].b = *(color + color_x * 3 + color_y * width * 3 + 2);
+
+			std::cout << coords.u << "," << coords.v << std::endl;
+
+			std::cout << color_x << "," << color_y << std::endl;
+				
+			//auto r = frame.get();
+				//cloud->points[i].r =
+//			vertices[i];
+//			tex_coords[i]);
+		}
+	}
+
+	/*
     auto ptr = points.get_vertices();
     for (auto& p : cloud->points)
     {
@@ -37,9 +89,33 @@ pcl_ptr points_to_pcl(const rs2::points& points)
         p.z = ptr->z;
         ptr++;
     }
+	*/
 
     return cloud;
 }
+
+pcl_ptr points_to_pcl(const rs2::points& points)
+{
+	pcl_ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+	auto sp = points.get_profile().as<rs2::video_stream_profile>();
+	cloud->width = sp.width();
+	cloud->height = sp.height();
+	cloud->is_dense = false;
+	cloud->points.resize(points.size());
+	auto ptr = points.get_vertices();
+	for (auto& p : cloud->points)
+	{
+		p.x = ptr->x;
+		p.y = ptr->y;
+		p.z = ptr->z;
+		ptr++;
+	}
+
+	return cloud;
+}
+
+
 
 float3 colors[] { { 0.8f, 0.1f, 0.3f }, 
                   { 0.1f, 0.9f, 0.5f },
@@ -64,30 +140,76 @@ int main(int argc, char * argv[]) try
     // Start streaming with default recommended configuration
     pipe.start();
 
-    // Wait for the next set of frames from the camera
-    auto frames = pipe.wait_for_frames();
+    
+	rs2::frameset frames;
+	rs2::video_frame color = nullptr;
+	rs2::depth_frame depth = nullptr;
+	pcl_ptr pcl_points;
 
-    auto depth = frames.get_depth_frame();
+	//compression
+	bool showStatistics = true;
 
-    // Generate the pointcloud and texture mappings
-    points = pc.calculate(depth);
+	// for a full list of profiles see: /io/include/pcl/compression/compression_profiles.h
+//	pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITH_COLOR;
+	pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITHOUT_COLOR;
 
-    auto pcl_points = points_to_pcl(points);
+	// instantiate point cloud compression for encoding and decoding
+	//auto 	PointCloudEncoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>(compressionProfile, showStatistics);
+	auto 	PointCloudEncoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZ>(compressionProfile, showStatistics);
+	auto PointCloudDecoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>();
 
-    pcl_ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PassThrough<pcl::PointXYZ> pass;
-    pass.setInputCloud(pcl_points);
-    pass.setFilterFieldName("z");
-    pass.setFilterLimits(0.0, 1.0);
-    pass.filter(*cloud_filtered);
-
-    std::vector<pcl_ptr> layers;
-    layers.push_back(pcl_points);
-    layers.push_back(cloud_filtered);
 
     while (app) // Application still alive?
     {
+		// Wait for the next set of frames from the camera
+		frames = pipe.wait_for_frames();
+
+		depth = frames.get_depth_frame();
+
+		// Generate the pointcloud and texture mappings
+		points = pc.calculate(depth);
+
+		color = frames.get_color_frame();
+
+		// Tell pointcloud object to map to this color frame
+		pc.map_to(color);
+
+		//app_state.tex.upload(color);
+
+
+		auto pcl_rgb_points = points_to_pcl(points, color);
+		pcl_points = points_to_pcl(points);
+
+		pcl_ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+		pcl::PassThrough<pcl::PointXYZ> pass;
+		pass.setInputCloud(pcl_points);
+		pass.setFilterFieldName("z");
+		pass.setFilterLimits(0.0, 1.0);
+
+		std::cout << "foo" << std::endl;
+
+		pass.filter(*cloud_filtered);
+
+		// compress 
+		std::stringstream compressedData;
+		// output pointcloud
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOut(new pcl::PointCloud<pcl::PointXYZ>());
+
+		// compress point cloud
+		//PointCloudEncoder->encodePointCloud(cloud_filtered, compressedData);
+		PointCloudEncoder->encodePointCloud(pcl_points, compressedData);
+
+
+		//continue;
+
+		std::vector<pcl_ptr> layers;
+		layers.push_back(pcl_points);
+		layers.push_back(cloud_filtered);
+
+
         draw_pointcloud(app, app_state, layers);
+
+		continue;
     }
 
     return EXIT_SUCCESS;
@@ -199,3 +321,9 @@ void draw_pointcloud(window& app, state& app_state, const std::vector<pcl_ptr>& 
     glPopAttrib();
     glPushMatrix();
 }
+
+
+
+//d_intrinsics = depth_stream.asrs2::video_stream_profile().get_intrinsics();
+//c_intrinsics = color_stream.asrs2::video_stream_profile().get_intrinsics();
+//d_to_c_extrinsics = depth_stream.get_extrinsics_to(color_stream);
