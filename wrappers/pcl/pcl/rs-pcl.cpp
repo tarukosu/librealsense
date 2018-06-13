@@ -28,6 +28,7 @@ using pcl_rgb_ptr = pcl::PointCloud<pcl::PointXYZRGB>::Ptr;
 // Helper functions
 void register_glfw_callbacks(window& app, state& app_state);
 void draw_pointcloud(window& app, state& app_state, const std::vector<pcl_ptr>& points);
+void draw_pointcloud_rgb(window& app, state& app_state, const std::vector<pcl_rgb_ptr>& points);
 
 
 pcl_rgb_ptr points_to_pcl(const rs2::points& points, rs2::video_frame frame)
@@ -48,6 +49,11 @@ pcl_rgb_ptr points_to_pcl(const rs2::points& points, rs2::video_frame frame)
 	//auto color = (unsigned char*)frame.get_data();
 	auto color = (uint8_t *)frame.get_data();
 
+	auto width = frame.get_width();
+	auto height = frame.get_height();
+	std::cout << "width:" << width << std::endl;
+	std::cout << "height:" << height << std::endl;
+
 	for (int i = 0; i < points.size(); i++)
 	{
 //		if (vertices[i].z)
@@ -59,19 +65,42 @@ pcl_rgb_ptr points_to_pcl(const rs2::points& points, rs2::video_frame frame)
 			cloud->points[i].z = vertices[i].z;
 
 			auto coords = tex_coords[i];
-			auto color_x = (int)(coords.u * frame.get_width());
-			auto color_y = (int)(coords.v * frame.get_height());
+			auto color_x = (int)((coords.u ) * frame.get_width());
+			//auto color_y = (int)((1.0 + coords.v)  * frame.get_height());
+			auto color_y = (int)((coords.v)  * frame.get_height());
+			//auto color_x = (int)((coords.u) * frame.get_width());
+			//auto color_y = (int)((1.0 + coords.v) * frame.get_height());
 
-			auto width = frame.get_width();
+
+			if (color_x < 0 || color_x > width) {
+				//std::cout << "errorx" << color_x << std::endl;
+				//std::cout << coords.u << "," << coords.v << std::endl;
+				continue;
+
+			}
+
+			if (color_y < 0 || color_y > height) {
+				//std::cout << "errory" << color_y << std::endl;
+				//std::cout << coords.u << "," << coords.v << std::endl;
+				continue;
+			}
 
 
 			cloud->points[i].r = *(color + color_x * 3 + color_y * width * 3 + 0);
 			cloud->points[i].g = *(color + color_x * 3 + color_y * width * 3 + 1);
 			cloud->points[i].b = *(color + color_x * 3 + color_y * width * 3 + 2);
 
-			std::cout << coords.u << "," << coords.v << std::endl;
 
-			std::cout << color_x << "," << color_y << std::endl;
+			// for debug
+			/*
+			if (0 < i && i < 100) {
+				std::cout << coords.u << "," << coords.v << std::endl;
+
+				std::cout << color_x << "," << color_y << std::endl;
+
+				std::cout << (int)cloud->points[i].r << "," << cloud->points[i].g << std::endl;
+			}
+			*/
 				
 			//auto r = frame.get();
 				//cloud->points[i].r =
@@ -150,11 +179,11 @@ int main(int argc, char * argv[]) try
 	bool showStatistics = true;
 
 	// for a full list of profiles see: /io/include/pcl/compression/compression_profiles.h
-//	pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITH_COLOR;
+	pcl::io::compression_Profiles_e compressionProfileRGB = pcl::io::MED_RES_ONLINE_COMPRESSION_WITH_COLOR;
 	pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITHOUT_COLOR;
 
 	// instantiate point cloud compression for encoding and decoding
-	//auto 	PointCloudEncoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>(compressionProfile, showStatistics);
+	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfile, showStatistics);
 	auto 	PointCloudEncoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZ>(compressionProfile, showStatistics);
 	auto PointCloudDecoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>();
 
@@ -166,10 +195,13 @@ int main(int argc, char * argv[]) try
 
 		depth = frames.get_depth_frame();
 
+		
+
 		// Generate the pointcloud and texture mappings
 		points = pc.calculate(depth);
 
 		color = frames.get_color_frame();
+
 
 		// Tell pointcloud object to map to this color frame
 		pc.map_to(color);
@@ -177,7 +209,66 @@ int main(int argc, char * argv[]) try
 		//app_state.tex.upload(color);
 
 
+		/*
+		{
+			auto tex_coords = points.get_texture_coordinates(); // and texture coordinates
+																//for (int i = 0; i < points.size(); i++)
+			for (int i = 0; i < 100; i++)
+			{
+				auto coords = tex_coords[i];
+				std::cout << coords.u << "," << coords.v << std::endl;
+			}
+
+
+		}
+		*/
+		//continue;
+
+
 		auto pcl_rgb_points = points_to_pcl(points, color);
+
+		//pcl_points = points_to_pcl(points);
+
+		/*
+
+		pcl_rgb_ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
+		pcl::PassThrough<pcl::PointXYZRGB> pass;
+		pass.setInputCloud(pcl_rgb_points);
+		pass.setFilterFieldName("z");
+		pass.setFilterLimits(0.0, 1.0);
+
+		pass.filter(*cloud_filtered);
+
+		// compress 
+		std::stringstream compressedData;
+		// output pointcloud
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOut(new pcl::PointCloud<pcl::PointXYZ>());
+
+		// compress point cloud
+		//PointCloudEncoder->encodePointCloud(cloud_filtered, compressedData);
+		PointCloudEncoder->encodePointCloud(pcl_points, compressedData);
+
+
+		// draw point cloud
+		std::vector<pcl_rgb_ptr> layers_rgb;
+		//layers_rgb.push_back(pcl_rgb_points);
+		layers_rgb.push_back(cloud_filtered);
+
+		draw_pointcloud_rgb(app, app_state, layers_rgb);
+
+
+		*/
+
+		std::vector<pcl_rgb_ptr> layers_rgb;
+		layers_rgb.push_back(pcl_rgb_points);
+		//layers_rgb.push_back(cloud_filtered);
+
+		draw_pointcloud_rgb(app, app_state, layers_rgb);
+
+		continue;
+
+
+		/*
 		pcl_points = points_to_pcl(points);
 
 		pcl_ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
@@ -208,6 +299,7 @@ int main(int argc, char * argv[]) try
 
 
         draw_pointcloud(app, app_state, layers);
+		*/
 
 		continue;
     }
@@ -321,6 +413,68 @@ void draw_pointcloud(window& app, state& app_state, const std::vector<pcl_ptr>& 
     glPopAttrib();
     glPushMatrix();
 }
+
+
+void draw_pointcloud_rgb(window& app, state& app_state, const std::vector<pcl_rgb_ptr>& points)
+{
+	// OpenGL commands that prep screen for the pointcloud
+	glPopMatrix();
+	glPushAttrib(GL_ALL_ATTRIB_BITS);
+
+	float width = app.width(), height = app.height();
+
+	glClearColor(153.f / 255, 153.f / 255, 153.f / 255, 1);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	gluPerspective(60, width / height, 0.01f, 10.0f);
+
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	gluLookAt(0, 0, 0, 0, 0, 1, 0, -1, 0);
+
+	glTranslatef(0, 0, +0.5f + app_state.offset_y*0.05f);
+	glRotated(app_state.pitch, 1, 0, 0);
+	glRotated(app_state.yaw, 0, 1, 0);
+	glTranslatef(0, 0, -0.5f);
+
+	glPointSize(width / 640);
+	glEnable(GL_TEXTURE_2D);
+
+	int color = 0;
+
+	for (auto&& pc : points)
+	{
+		//auto c = colors[(color++) % (sizeof(colors) / sizeof(float3))];
+
+		glBegin(GL_POINTS);
+		//glColor3f(c.x, c.y, c.z);
+
+		/* this segment actually prints the pointcloud */
+		for (int i = 0; i < pc->points.size(); i++)
+		{
+			auto&& p = pc->points[i];
+			if (p.z)
+			{
+				// upload the point and texture coordinates only for points we have depth data for
+				glVertex3f(p.x, p.y, p.z);
+
+				glColor3f(p.r / 255.0, p.g/ 255.0, p.b/255.0);
+			}
+		}
+
+		glEnd();
+	}
+
+	// OpenGL cleanup
+	glPopMatrix();
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glPopAttrib();
+	glPushMatrix();
+}
+
 
 
 
