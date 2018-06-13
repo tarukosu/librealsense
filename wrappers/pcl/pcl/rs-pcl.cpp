@@ -183,7 +183,8 @@ int main(int argc, char * argv[]) try
 	pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITHOUT_COLOR;
 
 	// instantiate point cloud compression for encoding and decoding
-	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfile, showStatistics);
+	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
+//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl_rgb_ptr>(compressionProfileRGB, showStatistics);
 	auto 	PointCloudEncoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZ>(compressionProfile, showStatistics);
 	auto PointCloudDecoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>();
 
@@ -229,7 +230,9 @@ int main(int argc, char * argv[]) try
 
 		//pcl_points = points_to_pcl(points);
 
-		/*
+
+
+		//pcl_rgb_ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 		pcl_rgb_ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
 		pcl::PassThrough<pcl::PointXYZRGB> pass;
@@ -242,13 +245,24 @@ int main(int argc, char * argv[]) try
 		// compress 
 		std::stringstream compressedData;
 		// output pointcloud
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOut(new pcl::PointCloud<pcl::PointXYZ>());
+		//pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOut(new pcl::PointCloud<pcl::PointXYZ>());
 
 		// compress point cloud
-		//PointCloudEncoder->encodePointCloud(cloud_filtered, compressedData);
-		PointCloudEncoder->encodePointCloud(pcl_points, compressedData);
+		//PointCloudEncoder->encodePointCloud(cloud_filteredp, compressedData);
+		//PointCloudEncoder->encodePointCloud(pcl_rgb_points, compressedData);
+		//PointCloudEncoderRGB->encodePointCloud(pcl_rgb_points, compressedData);
+		PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
+		//try {
+
+			/*
+			if (cloud_filtered != nullptr) {
+				PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
+			}
+			*/
 
 
+
+			/**/
 		// draw point cloud
 		std::vector<pcl_rgb_ptr> layers_rgb;
 		//layers_rgb.push_back(pcl_rgb_points);
@@ -257,13 +271,20 @@ int main(int argc, char * argv[]) try
 		draw_pointcloud_rgb(app, app_state, layers_rgb);
 
 
-		*/
 
+			continue;
+			/*
 		std::vector<pcl_rgb_ptr> layers_rgb;
-		layers_rgb.push_back(pcl_rgb_points);
-		//layers_rgb.push_back(cloud_filtered);
+		//layers_rgb.push_back(pcl_rgb_points);
+		layers_rgb.push_back(cloud_filtered);
 
 		draw_pointcloud_rgb(app, app_state, layers_rgb);
+
+		}
+		catch (exception e) {
+			std::cerr << e.what() << std::endl;
+		}
+
 
 		continue;
 
