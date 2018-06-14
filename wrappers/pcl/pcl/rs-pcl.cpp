@@ -177,25 +177,26 @@ int main(int argc, char * argv[]) try
 	pcl_ptr pcl_points;
 
 	//compression
-bool showStatistics = true;
+	bool showStatistics = true;
 //	bool showStatistics = false;
 
 	// for a full list of profiles see: /io/include/pcl/compression/compression_profiles.h
 	//pcl::io::compression_Profiles_e compressionProfileRGB = pcl::io::MED_RES_ONLINE_COMPRESSION_WITH_COLOR;
-pcl::io::compression_Profiles_e compressionProfileRGB = pcl::io::MED_RES_OFFLINE_COMPRESSION_WITH_COLOR;
-pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITHOUT_COLOR;
+	pcl::io::compression_Profiles_e compressionProfileRGB = pcl::io::MED_RES_OFFLINE_COMPRESSION_WITH_COLOR;
+	pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITHOUT_COLOR;
 
 	// instantiate point cloud compression for encoding and decoding
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics, 0.001, 0.01, false, 30U);
-//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics, 0.001, 0.01, true, 1U);
+    //auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics, 0.001, 0.01, true, 1U);
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.001, 0.01, false, 1U);
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.001, 0.01, false, 0U);
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.001, 0.01, true, 10U);x
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.0005, 0.003, true, 10U);
 	///auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.0005, 0.003, true, 1U);
-auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.0002, 0.003, true, 0U);
+	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.0002, 0.003, true, 0U); //GOOD!
+
 //	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
 
 	auto PointCloudDecoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>();
@@ -229,145 +230,55 @@ auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::Point
     {
 		// Wait for the next set of frames from the camera
 		frames = pipe.wait_for_frames();
-
 		depth = frames.get_depth_frame();
-
 
 		// Generate the pointcloud and texture mappings
 		points = pc.calculate(depth);
 
 		color = frames.get_color_frame();
 
-
 		// Tell pointcloud object to map to this color frame
 		pc.map_to(color);
-
-		//app_state.tex.upload(color);
-
-
-		/*
-		{
-			auto tex_coords = points.get_texture_coordinates(); // and texture coordinates
-																//for (int i = 0; i < points.size(); i++)
-			for (int i = 0; i < 100; i++)
-			{
-				auto coords = tex_coords[i];
-				std::cout << coords.u << "," << coords.v << std::endl;
-			}
-
-
-		}
-		*/
-		//continue;
-
-
 		auto pcl_rgb_points = points_to_pcl(points, color);
 
-		//pcl_points = points_to_pcl(points);
-
-		/*
-		std::cout << "point size" << std::endl;
-		std::cout << pcl_rgb_points->points.size() << std::endl;
-		*/
-
-
-
-		//pcl_rgb_ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-
+		// filter point cloud
 		pcl_rgb_ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZRGB>);
 		pcl::PassThrough<pcl::PointXYZRGB> pass;
 		pass.setInputCloud(pcl_rgb_points);
 		pass.setFilterFieldName("z");
 		pass.setFilterLimits(0.2, 1.0);
-
 		pass.filter(*cloud_filtered);
 
-		/*
-		std::cout << cloud_filtered->points.size() << std::endl;
-		std::cout << cloud_filtered->is_dense << std::endl;
-		std::cout << cloud_filtered->size() << std::endl;
-		*/
-		/*
-		if (filtered_size == 0) {
-			filtered_size = cloud_filtered->size();
-		}
-
-		*/
-
+		frameCounter++;
+#if TRUE
+		PointCloudEncoderRGB->switchBuffers();
+#else
 		int filteredSize = cloud_filtered->size();
 		if (cloudSize == 0)
 			cloudSize = filteredSize;
 		else
 		{
-			float differenceFactor = ((float)(filteredSize - cloudSize) / cloudSize);
+			float differenceFactor = std::abs((float)(filteredSize - cloudSize) / cloudSize);
 			//cout << "differenceFactor: " << differenceFactor << "\n";
-			if (differenceFactor > 0.1 || frameCounter ++ % 5)
+			if (differenceFactor > 0.1 || (frameCounter % 5) == 0)
 			{
 				cloudSize = filteredSize;
 				PointCloudEncoderRGB->switchBuffers();
 				cout << "switched cloudsize, pointcloud size difference factor is " << differenceFactor << "\n";
-
 			}
 			else
 			{
 				cloud_filtered->resize(cloudSize);
 			}
 		}
-
-		/*
-
-
-		auto original_size = cloud_filtered->size();
-		if (original_size > filtered_size) {
-			cloud_filtered->resize(filtered_size);
-			std::cout << "reduce" << std::endl;
-		}
-		else {
-			std::cout << "add dummy data" << std::endl;
-
-			cloud_filtered->resize(filtered_size);
-
-			for (int i = original_size; i < filtered_size; i++)
-			{
-				// upload the point and texture coordinates only for points we have depth data for
-				cloud_filtered->points[i].x = 0;
-				cloud_filtered->points[i].y = 0;
-				cloud_filtered->points[i].z = 0;
-				cloud_filtered->points[i].r = 0;
-				cloud_filtered->points[i].g = 0;
-				cloud_filtered->points[i].b = 0;
-
-			}
-		}
-
-		*/
+#endif
 
 		// compress 
 		std::stringstream compressedData;
-		// output pointcloud
-		//pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOut(new pcl::PointCloud<pcl::PointXYZ>());
-
-		// compress point cloud
-		//PointCloudEncoder->encodePointCloud(cloud_filteredp, compressedData);
-		//PointCloudEncoder->encodePointCloud(pcl_rgb_points, compressedData);
-		//PointCloudEncoderRGB->encodePointCloud(pcl_rgb_points, compressedData);
-
-		//switchBuffer reduces noise
-		/*
-		if (++switch_buffer_counter >= switch_buffer_rate) {
-			PointCloudEncoderRGB->switchBuffers();
-			switch_buffer_counter = 0;
-		}
-		*/
-		//PointCloudEncoderRGB->switchBuffers();
-
 		PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
-
 
 		// calculate data size
 		std::string compressedDataString = compressedData.str();
-
-		//std::stringstream().swap(compressedData);
 		int frameDataLength = compressedDataString.length() / 1024; //get the datalength in kilobytes
 																	//cout << "compresseddata offset: " << frameDataLength << "\n";
 		cumulativeDataLength += frameDataLength;
@@ -380,11 +291,9 @@ auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::Point
 			cumulativeDataLength = 0;
 		}
 
+
 		pcl_rgb_ptr decompressed_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
 		PointCloudDecoderRGB->decodePointCloud(compressedData, decompressed_cloud);
-
-
-
 
 		/*
 		 compressedData.seekp(0, ios::end);
@@ -402,81 +311,12 @@ auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::Point
 		 }
 		 */
 
-
-
-
-		//try {
-
-			/*
-			if (cloud_filtered != nullptr) {
-				PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
-			}
-			*/
-
-
-
-			/**/
 		// draw point cloud
 		std::vector<pcl_rgb_ptr> layers_rgb;
 		//layers_rgb.push_back(pcl_rgb_points);
 		//layers_rgb.push_back(cloud_filtered);
 		layers_rgb.push_back(decompressed_cloud);
-
 		draw_pointcloud_rgb(app, app_state, layers_rgb);
-
-
-
-			continue;
-			/*
-		std::vector<pcl_rgb_ptr> layers_rgb;
-		//layers_rgb.push_back(pcl_rgb_points);
-		layers_rgb.push_back(cloud_filtered);
-
-		draw_pointcloud_rgb(app, app_state, layers_rgb);
-
-		}
-		catch (exception e) {
-			std::cerr << e.what() << std::endl;
-		}
-
-
-		continue;
-
-
-		/*
-		pcl_points = points_to_pcl(points);
-
-		pcl_ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-		pcl::PassThrough<pcl::PointXYZ> pass;
-		pass.setInputCloud(pcl_points);
-		pass.setFilterFieldName("z");
-		pass.setFilterLimits(0.0, 1.0);
-
-		std::cout << "foo" << std::endl;
-
-		pass.filter(*cloud_filtered);
-
-		// compress 
-		std::stringstream compressedData;
-		// output pointcloud
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOut(new pcl::PointCloud<pcl::PointXYZ>());
-
-		// compress point cloud
-		//PointCloudEncoder->encodePointCloud(cloud_filtered, compressedData);
-		PointCloudEncoder->encodePointCloud(pcl_points, compressedData);
-
-
-		//continue;
-
-		std::vector<pcl_ptr> layers;
-		layers.push_back(pcl_points);
-		layers.push_back(cloud_filtered);
-
-
-        draw_pointcloud(app, app_state, layers);
-		*/
-
-		continue;
     }
 
     return EXIT_SUCCESS;
@@ -650,6 +490,39 @@ void draw_pointcloud_rgb(window& app, state& app_state, const std::vector<pcl_rg
 	glPushMatrix();
 }
 
+/*
+void send_point_cloud() {
+	int i;
+	// ポート番号，ソケット
+	int srcSocket;  // 自分
+	int dstSocket;  // 相手
+
+	// sockaddr_in 構造体
+	struct sockaddr_in srcAddr;
+	struct sockaddr_in dstAddr;
+	int dstAddrSize = sizeof(dstAddr);
+	int status;
+	// 各種パラメータ
+	int numrcv;
+	char buffer[1024];
+
+	// Windows の場合
+	WSADATA data;
+	WSAStartup(MAKEWORD(2,0), &data);
+	// sockaddr_in 構造体のセット
+	memset(&srcAddr, 0, sizeof(srcAddr));
+	srcAddr.sin_port = htons(PORT);
+	srcAddr.sin_family = AF_INET;
+	srcAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	// ソケットの生成（ストリーム型）
+	srcSocket = socket(AF_INET, SOCK_STREAM, 0);
+  	// ソケットのバインド
+	bind(srcSocket, (struct sockaddr *) &srcAddr, sizeof(srcAddr));
+  	// 接続の許可
+	listen(srcSocket, 1);
+
+}*/
 
 SYSTEMTIME operator-(const SYSTEMTIME& pSr, const SYSTEMTIME& pSl)
 {
@@ -680,3 +553,4 @@ SYSTEMTIME operator-(const SYSTEMTIME& pSr, const SYSTEMTIME& pSl)
 //d_intrinsics = depth_stream.asrs2::video_stream_profile().get_intrinsics();
 //c_intrinsics = color_stream.asrs2::video_stream_profile().get_intrinsics();
 //d_to_c_extrinsics = depth_stream.get_extrinsics_to(color_stream);
+
