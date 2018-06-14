@@ -14,6 +14,7 @@
 
 #include <pcl/compression/octree_pointcloud_compression.h>
 
+SYSTEMTIME operator-(const SYSTEMTIME& pSr, const SYSTEMTIME& pSl);
 
 // Struct for managing rotation of pointcloud view
 struct state {
@@ -180,25 +181,49 @@ bool showStatistics = true;
 //	bool showStatistics = false;
 
 	// for a full list of profiles see: /io/include/pcl/compression/compression_profiles.h
-	pcl::io::compression_Profiles_e compressionProfileRGB = pcl::io::MED_RES_ONLINE_COMPRESSION_WITH_COLOR;
-	pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITHOUT_COLOR;
+	//pcl::io::compression_Profiles_e compressionProfileRGB = pcl::io::MED_RES_ONLINE_COMPRESSION_WITH_COLOR;
+pcl::io::compression_Profiles_e compressionProfileRGB = pcl::io::MED_RES_OFFLINE_COMPRESSION_WITH_COLOR;
+pcl::io::compression_Profiles_e compressionProfile = pcl::io::MED_RES_ONLINE_COMPRESSION_WITHOUT_COLOR;
 
 	// instantiate point cloud compression for encoding and decoding
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
-	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics, 0.001, 0.01, false, 30U);
+	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics, 0.001, 0.01, false, 30U);
+//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics, 0.001, 0.01, true, 1U);
+	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
+	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.001, 0.01, false, 1U);
+	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.001, 0.01, false, 0U);
+	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.001, 0.01, true, 10U);x
+	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.0005, 0.003, true, 10U);
+	///auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.0005, 0.003, true, 1U);
+auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(pcl::io::MANUAL_CONFIGURATION, showStatistics, 0.0002, 0.003, true, 0U);
+//	auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compressionProfileRGB, showStatistics);
 
+	auto PointCloudDecoderRGB = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>();
 	//auto 	PointCloudEncoderRGB = new pcl::io::OctreePointCloudCompression<pcl_rgb_ptr>(compressionProfileRGB, showStatistics);
 //	auto 	PointCloudEncoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZ>(compressionProfile, showStatistics);
-	//	auto PointCloudDecoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>();
+//	auto PointCloudDecoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGBA>();
 
 
 	int filtered_size = 0;
-	
+	int cloudSize = 0;
+	int cumulativeDataLength = 0;
+
+
 	int calc_compression_index = 0;
 	int calc_compression_rate = 30;
 	int compression_data_size = 0;
 
 
+	int switch_buffer_counter = 0;
+	int switch_buffer_rate = 5;
+
+	int frameCounter = 0;
+
+	SYSTEMTIME startTime;
+	SYSTEMTIME endTime;
+	GetLocalTime(&startTime);
+	GetLocalTime(&endTime);
+//	int cumulativeDataLength = 0;
 
     while (app) // Application still alive?
     {
@@ -207,7 +232,6 @@ bool showStatistics = true;
 
 		depth = frames.get_depth_frame();
 
-		
 
 		// Generate the pointcloud and texture mappings
 		points = pc.calculate(depth);
@@ -263,12 +287,60 @@ bool showStatistics = true;
 		std::cout << cloud_filtered->is_dense << std::endl;
 		std::cout << cloud_filtered->size() << std::endl;
 		*/
+		/*
 		if (filtered_size == 0) {
 			filtered_size = cloud_filtered->size();
 		}
 
-		cloud_filtered->resize(filtered_size);
+		*/
 
+		int filteredSize = cloud_filtered->size();
+		if (cloudSize == 0)
+			cloudSize = filteredSize;
+		else
+		{
+			float differenceFactor = ((float)(filteredSize - cloudSize) / cloudSize);
+			//cout << "differenceFactor: " << differenceFactor << "\n";
+			if (differenceFactor > 0.1 || frameCounter ++ % 5)
+			{
+				cloudSize = filteredSize;
+				PointCloudEncoderRGB->switchBuffers();
+				cout << "switched cloudsize, pointcloud size difference factor is " << differenceFactor << "\n";
+
+			}
+			else
+			{
+				cloud_filtered->resize(cloudSize);
+			}
+		}
+
+		/*
+
+
+		auto original_size = cloud_filtered->size();
+		if (original_size > filtered_size) {
+			cloud_filtered->resize(filtered_size);
+			std::cout << "reduce" << std::endl;
+		}
+		else {
+			std::cout << "add dummy data" << std::endl;
+
+			cloud_filtered->resize(filtered_size);
+
+			for (int i = original_size; i < filtered_size; i++)
+			{
+				// upload the point and texture coordinates only for points we have depth data for
+				cloud_filtered->points[i].x = 0;
+				cloud_filtered->points[i].y = 0;
+				cloud_filtered->points[i].z = 0;
+				cloud_filtered->points[i].r = 0;
+				cloud_filtered->points[i].g = 0;
+				cloud_filtered->points[i].b = 0;
+
+			}
+		}
+
+		*/
 
 		// compress 
 		std::stringstream compressedData;
@@ -279,14 +351,48 @@ bool showStatistics = true;
 		//PointCloudEncoder->encodePointCloud(cloud_filteredp, compressedData);
 		//PointCloudEncoder->encodePointCloud(pcl_rgb_points, compressedData);
 		//PointCloudEncoderRGB->encodePointCloud(pcl_rgb_points, compressedData);
-		 PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
+
+		//switchBuffer reduces noise
+		/*
+		if (++switch_buffer_counter >= switch_buffer_rate) {
+			PointCloudEncoderRGB->switchBuffers();
+			switch_buffer_counter = 0;
+		}
+		*/
+		//PointCloudEncoderRGB->switchBuffers();
+
+		PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
 
 
+		// calculate data size
+		std::string compressedDataString = compressedData.str();
+
+		//std::stringstream().swap(compressedData);
+		int frameDataLength = compressedDataString.length() / 1024; //get the datalength in kilobytes
+																	//cout << "compresseddata offset: " << frameDataLength << "\n";
+		cumulativeDataLength += frameDataLength;
+		GetLocalTime(&endTime);
+
+		if ((endTime - startTime).wSecond > 0)
+		{
+			startTime = endTime;
+			cout << "Total data transfer over last second was " << cumulativeDataLength << "KB\n";
+			cumulativeDataLength = 0;
+		}
+
+		pcl_rgb_ptr decompressed_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+		PointCloudDecoderRGB->decodePointCloud(compressedData, decompressed_cloud);
+
+
+
+
+		/*
 		 compressedData.seekp(0, ios::end);
 		 stringstream::pos_type offset = compressedData.tellp();
 		 std::cout << offset << std::endl;
 
 
+		 
 		 calc_compression_index++;
 		 if (calc_compression_index == calc_compression_rate) {
 			 compression_data_size += (int)offset;
@@ -294,6 +400,7 @@ bool showStatistics = true;
 			 compression_data_size = 0;
 			 calc_compression_index = 0;
 		 }
+		 */
 
 
 
@@ -312,7 +419,8 @@ bool showStatistics = true;
 		// draw point cloud
 		std::vector<pcl_rgb_ptr> layers_rgb;
 		//layers_rgb.push_back(pcl_rgb_points);
-		layers_rgb.push_back(cloud_filtered);
+		//layers_rgb.push_back(cloud_filtered);
+		layers_rgb.push_back(decompressed_cloud);
 
 		draw_pointcloud_rgb(app, app_state, layers_rgb);
 
@@ -543,6 +651,30 @@ void draw_pointcloud_rgb(window& app, state& app_state, const std::vector<pcl_rg
 }
 
 
+SYSTEMTIME operator-(const SYSTEMTIME& pSr, const SYSTEMTIME& pSl)
+{
+	SYSTEMTIME t_res;
+	FILETIME v_ftime;
+	ULARGE_INTEGER v_ui;
+	__int64 v_right, v_left, v_res;
+	SystemTimeToFileTime(&pSr, &v_ftime);
+	v_ui.LowPart = v_ftime.dwLowDateTime;
+	v_ui.HighPart = v_ftime.dwHighDateTime;
+	v_right = v_ui.QuadPart;
+
+	SystemTimeToFileTime(&pSl, &v_ftime);
+	v_ui.LowPart = v_ftime.dwLowDateTime;
+	v_ui.HighPart = v_ftime.dwHighDateTime;
+	v_left = v_ui.QuadPart;
+
+	v_res = v_right - v_left;
+
+	v_ui.QuadPart = v_res;
+	v_ftime.dwLowDateTime = v_ui.LowPart;
+	v_ftime.dwHighDateTime = v_ui.HighPart;
+	FileTimeToSystemTime(&v_ftime, &t_res);
+	return t_res;
+}
 
 
 //d_intrinsics = depth_stream.asrs2::video_stream_profile().get_intrinsics();
