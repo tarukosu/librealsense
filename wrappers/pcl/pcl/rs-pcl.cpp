@@ -234,26 +234,25 @@ int main(int argc, char * argv[]) try
 #endif
 
 		// compress 
-		//std::stringstream compressedData;
-		//PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
+		std::stringstream compressedData;
+		PointCloudEncoderRGB->encodePointCloud(cloud_filtered, compressedData);
 
-		//// calculate data size
-		//std::string compressedDataString = compressedData.str();
-		//int frameDataLength = compressedDataString.length() / 1024; //get the datalength in kilobytes
-		//															//cout << "compresseddata offset: " << frameDataLength << "\n";
-		//cumulativeDataLength += frameDataLength;
-		//GetLocalTime(&endTime);
+		// calculate data size
+		std::string compressedDataString = compressedData.str();
+		int frameDataLength = compressedDataString.length() / 1024; //get the datalength in kilobytes
+		cumulativeDataLength += frameDataLength;
+		GetLocalTime(&endTime);
 
-		//if ((endTime - startTime).wSecond > 0)
-		//{
-		//	startTime = endTime;
-		//	cout << "Total data transfer over last second was " << cumulativeDataLength << "KB\n";
-		//	cumulativeDataLength = 0;
-		//}
+		if ((endTime - startTime).wSecond > 0)
+		{
+			startTime = endTime;
+			cout << "Total data transfer over last second was " << cumulativeDataLength << "KB\n";
+			cumulativeDataLength = 0;
+		}
 
 
-		//pcl_rgb_ptr decompressed_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
-		//PointCloudDecoderRGB->decodePointCloud(compressedData, decompressed_cloud);
+		pcl_rgb_ptr decompressed_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+		PointCloudDecoderRGB->decodePointCloud(compressedData, decompressed_cloud);
 
 		/*
 		 compressedData.seekp(0, ios::end);
@@ -279,8 +278,8 @@ int main(int argc, char * argv[]) try
 		// draw point cloud
 		std::vector<pcl_rgb_ptr> layers_rgb;
 		//layers_rgb.push_back(pcl_rgb_points);
-		layers_rgb.push_back(cloud_filtered);
-		//layers_rgb.push_back(decompressed_cloud);
+		//layers_rgb.push_back(cloud_filtered);
+		layers_rgb.push_back(decompressed_cloud);
 		draw_pointcloud_rgb(app, app_state, layers_rgb);
 		frameCounter++;
     }
