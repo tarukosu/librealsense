@@ -44,8 +44,22 @@ int main(int argc, char * argv[]) try
         pc.map_to(color);
 
         // Upload the color frame to OpenGL
-        app_state.tex.upload(color);
+		//app_state.tex.upload(color);
 
+
+		{
+			auto tex_coords = points.get_texture_coordinates(); // and texture coordinates
+
+
+			//for (int i = 0; i < points.size(); i++)
+			for (int i = 0; i < 100; i++)
+			{
+				auto coords = tex_coords[i];
+				std::cout << coords.u << "," << coords.v << std::endl;
+			}
+
+
+		}
         // Draw the pointcloud
         draw_pointcloud(app.width(), app.height(), app_state, points);
     }

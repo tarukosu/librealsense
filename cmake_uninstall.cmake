@@ -1,14 +1,14 @@
-IF(NOT EXISTS "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt")
-  MESSAGE(WARNING "Cannot find install manifest: \"@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt\"")
+IF(NOT EXISTS "C:/work/5.Research/1.depthSensor/librealsense/install_manifest.txt")
+  MESSAGE(WARNING "Cannot find install manifest: \"C:/work/5.Research/1.depthSensor/librealsense/install_manifest.txt\"")
   MESSAGE(STATUS "Uninstall targets will be skipped")
-ELSE(NOT EXISTS "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt")
-  FILE(READ "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt" files)
+ELSE(NOT EXISTS "C:/work/5.Research/1.depthSensor/librealsense/install_manifest.txt")
+  FILE(READ "C:/work/5.Research/1.depthSensor/librealsense/install_manifest.txt" files)
   STRING(REGEX REPLACE "\n" ";" files "${files}")
   FOREACH(file ${files})
     MESSAGE(STATUS "Uninstalling \"$ENV{DESTDIR}${file}\"")
     IF(EXISTS "$ENV{DESTDIR}${file}")
       EXEC_PROGRAM(
-        "@CMAKE_COMMAND@" ARGS "-E remove \"$ENV{DESTDIR}${file}\""
+        "C:/Program Files/CMake/bin/cmake.exe" ARGS "-E remove \"$ENV{DESTDIR}${file}\""
         OUTPUT_VARIABLE rm_out
         RETURN_VALUE rm_retval
         )
@@ -18,7 +18,7 @@ ELSE(NOT EXISTS "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt")
     ELSEIF(NOT "${CMAKE_VERSION}" STRLESS "2.8.1")
       IF(IS_SYMLINK "$ENV{DESTDIR}${file}")
         EXEC_PROGRAM(
-          "@CMAKE_COMMAND@" ARGS "-E remove \"$ENV{DESTDIR}${file}\""
+          "C:/Program Files/CMake/bin/cmake.exe" ARGS "-E remove \"$ENV{DESTDIR}${file}\""
           OUTPUT_VARIABLE rm_out
           RETURN_VALUE rm_retval
           )
@@ -31,4 +31,4 @@ ELSE(NOT EXISTS "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt")
     ENDIF(EXISTS "$ENV{DESTDIR}${file}")
   ENDFOREACH(file)
   execute_process(COMMAND ldconfig)
-ENDIF(NOT EXISTS "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt")
+ENDIF(NOT EXISTS "C:/work/5.Research/1.depthSensor/librealsense/install_manifest.txt")
